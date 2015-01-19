@@ -21,12 +21,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_imagelib.h"
 #include "../qalgo/hash.h"
 
-#if defined ( __MACOSX__ )
-#include "libjpeg/jpeglib.h"
-#include "png/png.h"
+#if defined(USE_SDL2_IMAGE)
+	#include <SDL_image.h>
 #else
-#include "jpeglib.h"
-#include "png.h"
+	#if defined ( __MACOSX__ )
+		#include "libjpeg/jpeglib.h"
+		#include "png/png.h"
+	#else
+		#include "jpeglib.h"
+		#include "png.h"
+	#endif
 #endif
 
 #include <setjmp.h>
@@ -541,6 +545,7 @@ qboolean WriteTGA( const char *name, r_imginfo_t *info, int quality )
 	return qtrue;
 }
 
+#if !defined(USE_SDL2_IMAGE)
 /*
 =========================================================
 
@@ -968,6 +973,65 @@ error:
 	imginfo.pixels = img;
 	return imginfo;
 }
+
+#else
+
+/*
+ * LoadJPG
+ */
+r_imginfo_t ImgInfoFromSDLSurface(SDL_Surface* surface)
+{
+    r_imginfo_t imginfo;
+    
+    imginfo.comp = IMGCOMP_RGBA;
+    imginfo.width = surface->w;
+    imginfo.height = surface->h;
+    imginfo.samples = 4;
+    imginfo.pixels = surface->pixels;
+    
+    // surface->pixels needs to stay alive after calling SDL_FreeSurface()
+    surface->flags &= SDL_PREALLOC;
+    SDL_FreeSurface( surface );
+    
+    // TODO: where imginfo.pixels allocated by SDL should by freed by calling SDL_free()
+    return imginfo;
+}
+
+r_imginfo_t LoadJPG( const char *name, qbyte *(*allocbuf)( void *, size_t, const char *, int ), void *uptr )
+{
+    uint8_t* data = NULL;
+    size_t datasize = 0;
+    SDL_RWops* rwops = NULL;
+    SDL_Surface* surface = NULL;
+    
+    datasize = R_LoadFile( name, (void**)&data);
+    rwops = SDL_RWFromMem( data, datasize );
+    surface = IMG_LoadJPG_RW( rwops );
+    
+    return ImgInfoFromSDLSurface( surface );
+}
+
+r_imginfo_t LoadPNG( const char *name, qbyte *(*allocbuf)( void *, size_t, const char *, int ), void *uptr )
+{
+    uint8_t* data = NULL;
+    size_t datasize = 0;
+    SDL_RWops* rwops = NULL;
+    SDL_Surface* surface = NULL;
+    
+    datasize = R_LoadFile( name, (void**)&data);
+    rwops = SDL_RWFromMem( data, datasize );
+    surface = IMG_LoadPNG_RW( rwops );
+    
+    return ImgInfoFromSDLSurface( surface );
+}
+
+qboolean WriteJPG( const char *name, r_imginfo_t *info, int quality )
+{
+	// TODO: Not supported by SDL2_image yet. We can save pngs or patch SDL2_image to support jpeg saving
+    return qfalse;
+}
+
+#endif
 
 /*
 =========================================================

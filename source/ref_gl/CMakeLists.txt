@@ -1,9 +1,13 @@
 project(ref_gl)
 
-include_directories(${JPEG_INCLUDE_DIR} ${PNG_INCLUDE_DIR})
-
 if (USE_SDL2)
     include_directories(${SDL2_INCLUDE_DIRS})
+endif()
+
+if (USE_SDL2_IMAGE)
+    include_directories(${SDL2_IMAGE_INCLUDE_DIR})
+else()
+    include_directories(${JPEG_INCLUDE_DIR} ${PNG_INCLUDE_DIR})
 endif()
 
 file(GLOB REF_GL_HEADERS
@@ -47,5 +51,9 @@ else()
 endif()
 
 add_library(ref_gl SHARED ${REF_GL_HEADERS} ${REF_GL_COMMON_SOURCES} ${REF_GL_PLATFORM_SOURCES})
-target_link_libraries(ref_gl ${JPEG_LIBRARIES} ${PNG_LIBRARIES} ${REF_GL_PLATFORM_LIBRARIES})
+if (USE_SDL2_IMAGE)
+    target_link_libraries(ref_gl ${SDL2_IMAGE_LIBRARY} ${REF_GL_PLATFORM_LIBRARIES})
+else()
+    target_link_libraries(ref_gl ${JPEG_LIBRARIES} ${PNG_LIBRARIES} ${REF_GL_PLATFORM_LIBRARIES})
+endif()
 qf_set_output_dir(ref_gl libs)
