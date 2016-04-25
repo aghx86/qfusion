@@ -1,5 +1,4 @@
 sudo: false
-language: c++
 install: true
 cache: 
   apt: true
@@ -9,7 +8,7 @@ notifications:
   email: false
   slack:
     rooms:
-      secure: 14/HK8RO8PzfznH7vmZwlfaOY0L2qqD21s+xyNfSRsayJGTIJV1lZrjSqGRpUSZm+ZZ+j0P/zB4QBXaJu077vTRYSQrudp85OTELSFNrBxWqBHokxDgL5tvXMZMa+0MPY/pd6h6dAgOgjku0QQNtYI9axASMseRDpOZX5unnRtE=
+      secure: FO4vtIe+YSl6xpJVmNzSOvef5RQxOjuUGJ02zhRrkBK3DOQMP2pOjIRIyEq6m0xx+BVK5UoLl8ACFS5e5P0wJOE7Bvl963yonKgK+sGutEGck5EmroBLCln9KvXkYaBElMgDZBZDm8q9ValjVwB2ym/aP82//6LLnCeVRBMThjE=
     on_success: change
     on_failure: always
 
@@ -17,23 +16,35 @@ matrix:
   include:
     - os: osx
       env: QF_ARCH=OSX
+      language: c++
+      compiler: clang
     - os: linux
+      language: c++
+      compiler: gcc-4.9
       env: QF_ARCH=x86
       addons:
         apt:
           sources:
             - kubuntu-backports
+            - ubuntu-toolchain-r-test
           packages:
+            - gcc-4.9
+            - g++-4.9
             - cmake
             - build-essential
             - gcc-multilib
     - os: linux
+      language: c++
+      compiler: gcc-4.9
       env: QF_ARCH=x86_64
       addons:
         apt:
           sources:
             - kubuntu-backports
+            - ubuntu-toolchain-r-test
           packages:
+            - gcc-4.9
+            - g++-4.9
             - cmake
             - build-essential
             - libopenal-dev
@@ -44,7 +55,9 @@ matrix:
             - zlib1g-dev
             - libcurl4-gnutls-dev
     - os: linux
+      language: c++
       env: QF_ARCH=win32_x86
+      compiler: i686-w64-mingw32-gcc
       addons:
         apt:
           sources:
@@ -52,41 +65,75 @@ matrix:
           packages:
             - cmake
             - binutils-mingw-w64-i686
-            - binutils-mingw-w64-x86-64
             - gcc-mingw-w64-i686
-            - gcc-mingw-w64-x86-64
             - gcc-mingw-w64
             - g++-mingw-w64-i686
-            - g++-mingw-w64-x86-64
             - g++-mingw-w64
             - mingw-w64
     - os: linux
+      language: c++
       env: QF_ARCH=win32_x86_64
+      compiler: x86_64-w64-mingw32-gcc
       addons:
         apt:
           sources:
             - kubuntu-backports
           packages:
             - cmake
-            - binutils-mingw-w64-i686
             - binutils-mingw-w64-x86-64
-            - gcc-mingw-w64-i686
             - gcc-mingw-w64-x86-64
             - gcc-mingw-w64
-            - g++-mingw-w64-i686
             - g++-mingw-w64-x86-64
             - g++-mingw-w64
             - mingw-w64
+    - language: android
+      env: QF_ARCH=android
+      jdk: oraclejdk7
+      android:
+        components:
+          - build-tools-21.0.2
+          - android-19
 
 before_install:
 
 install:
   - if [[ "$QF_ARCH" == "x86_64" ]] && [ ! -e "$HOME/.deps/$QF_ARCH/lib/pkgconfig/sdl2.pc" ]; then mkdir -p $HOME/.deps/$QF_ARCH && cd $HOME/.deps/$QF_ARCH && curl -O http://www.libsdl.org/release/SDL2-2.0.4.tar.gz && tar -xzvf SDL2-2.0.4.tar.gz && cd SDL2-2.0.4 && ./configure --prefix="$HOME/.deps/$QF_ARCH" && make && make install && cd .. && rm -rf SDL2-2.0.4 && cd "$TRAVIS_BUILD_DIR"; fi
+  - if [[ "$QF_ARCH" == "android" ]] && [ ! -e "$HOME/.deps/android-ndk-r11c" ]; then curl -L http://dl.google.com/android/repository/android-ndk-r11c-linux-x86_64.zip >ndk.zip && unzip ndk.zip -d $HOME/.deps &> /dev/null && rm ndk.zip; fi
+  - if [[ "$QF_ARCH" == "android" ]]; then export NDK_HOME=$HOME/.deps/android-ndk-r11c && export PATH="$PATH:$NDK_HOME"; fi
+  - if [[ "$QF_ARCH" == "x86_64" ]]; then export CC=gcc-4.9 CXX=g++-4.9; fi
+  - if [[ "$QF_ARCH" == "x86" ]]; then export CC=gcc-4.9 CXX=g++-4.9; fi
 
 script:
   - cd source
-  - if [[ "$QF_ARCH" == "win32_x86" ]]; then cmake -DCMAKE_TOOLCHAIN_FILE=cmake/i686-mingw.cmake -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32 . && make -j2; fi
-  - if [[ "$QF_ARCH" == "win32_x86_64" ]]; then cmake -DCMAKE_TOOLCHAIN_FILE=cmake/x86_64-mingw.cmake . && make -j2; fi
-  - if [[ "$QF_ARCH" == "x86_64" ]]; then export SDL2DIR="$HOME/.deps/$QF_ARCH" && cmake . && make -j2; fi
-  - if [[ "$QF_ARCH" == "x86" ]]; then cmake -DCMAKE_TOOLCHAIN_FILE=cmake/i386-linux-gnu.cmake -DGAME_MODULES_ONLY=1 . && make -j2 game cgame; fi
+  - if [[ "$QF_ARCH" == "win32_x86" ]]; then cmake -DCMAKE_TOOLCHAIN_FILE=cmake/i686-mingw.cmake -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32 . && make; fi
+  - if [[ "$QF_ARCH" == "win32_x86_64" ]]; then cmake -DCMAKE_TOOLCHAIN_FILE=cmake/x86_64-mingw.cmake . && make; fi
+  - if [[ "$QF_ARCH" == "x86_64" ]]; then export SDL2DIR="$HOME/.deps/$QF_ARCH" && cmake . && make; fi
+  - if [[ "$QF_ARCH" == "x86" ]]; then cmake -DCMAKE_TOOLCHAIN_FILE=cmake/i386-linux-gnu.cmake -DGAME_MODULES_ONLY=1 . && make game cgame; fi
   - if [[ "$QF_ARCH" == "OSX" ]]; then cmake -G Xcode . && xcodebuild -project qfusion.xcodeproj/ -configuration Release -target ALL_BUILD; fi
+  - if [[ "$QF_ARCH" == "android" ]]; then mkdir -p build/libs && cd ../platforms/android/projects/qfusion/jni && ln -s ../../../../../libsrcs libsrcs && ln -s ../../../../../source source && ln -s ../../../../../icons icons && ndk-build && cd "$TRAVIS_BUILD_DIR/source" && cp -Rd ../platforms/android/projects/qfusion/libs/* build/; fi
+
+before_deploy:
+  - cd build
+  - if [[ "$QF_ARCH" == "OSX" ]]; then cd Release && zip -r ../../tmp * && cd ..; fi
+  - if [[ "$QF_ARCH" != "OSX" ]]; then zip -r ../tmp * --exclude *.a --exclude base*/*.a libs/*.a; fi
+  - cd ..
+  - mkdir -p dpl_cd_upload/${TRAVIS_BRANCH}
+  - mv tmp.zip dpl_cd_upload/${TRAVIS_BRANCH}/${QF_ARCH}-Release.zip
+
+deploy:
+  provider: s3
+  access_key_id: AKIAJAWHJ4EIHVBH42NQ
+  secret_access_key:
+    secure: cwOXqpr83YXgvY8Teyos7oMVbMWby7xTw6HwtLC/4jeGchNqryVEucSP3ogMQ3HYufprTxat4NzeC0Lflh0ULpfPesmlTvWUUXueBRO6521vZTH15RFY06h5bPfU1Abjh8zAhiD71VOuhgypDZjYSArzJgcMeV/il6Dnd7ok3IA=
+  bucket: bin.qfusion.net
+  local-dir: dpl_cd_upload
+  upload-dir: qfusion
+  acl: public_read
+  skip_cleanup: true
+  region: eu-central-1
+  on:
+    repo: Qfusion/qfusion
+    branch:
+      - master
+      - ci
+      - warsow_2_1
