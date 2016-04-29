@@ -57,35 +57,35 @@ matrix:
     - os: linux
       language: c++
       env: QF_ARCH=win32_x86
-      compiler: i686-w64-mingw32-gcc
+      compiler: i686-w64-mingw32-gcc-5
       addons:
         apt:
           sources:
             - kubuntu-backports
+            - ubuntu-toolchain-r-test
           packages:
             - cmake
             - binutils-mingw-w64-i686
-            - gcc-mingw-w64-i686
-            - gcc-mingw-w64
-            - g++-mingw-w64-i686
-            - g++-mingw-w64
-            - mingw-w64
+            - gcc-5-mingw-w64-i686
+            - gcc-5-mingw-w64
+            - g++-5-mingw-w64-i686
+            - g++-5-mingw-w64
     - os: linux
       language: c++
       env: QF_ARCH=win32_x86_64
-      compiler: x86_64-w64-mingw32-gcc
+      compiler: x86_64-w64-mingw32-gcc-5
       addons:
         apt:
           sources:
             - kubuntu-backports
+            - ubuntu-toolchain-r-test
           packages:
             - cmake
             - binutils-mingw-w64-x86-64
-            - gcc-mingw-w64-x86-64
-            - gcc-mingw-w64
-            - g++-mingw-w64-x86-64
-            - g++-mingw-w64
-            - mingw-w64
+            - gcc-5-mingw-w64-x86-64
+            - gcc-5-mingw-w64
+            - g++-5-mingw-w64-x86-64
+            - g++-5-mingw-w64
     - language: android
       env: QF_ARCH=android
       jdk: oraclejdk7
