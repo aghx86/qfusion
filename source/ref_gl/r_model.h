@@ -101,13 +101,6 @@ typedef struct mnode_s
 	// common with leaf
 	cplane_t		*plane;
 
-	unsigned int	pvsframe;
-
-	float			mins[3];
-	float			maxs[3];			// for bounding box culling
-
-	struct mnode_s	*parent;
-
 	// node specific
 	struct mnode_s	*children[2];
 } mnode_t;
@@ -117,19 +110,17 @@ typedef struct mleaf_s
 	// common with node
 	cplane_t		*plane;
 
-	unsigned int	pvsframe;
+	// leaf specific
+	int				cluster, area;
 
 	float			mins[3];
 	float			maxs[3];			// for bounding box culling
 
-	struct			mnode_s *parent;
+	unsigned		numVisSurfaces;
+	unsigned		*visSurfaces;
 
-	// leaf specific
-	unsigned int	visframe;
-	int				cluster, area;
-
-	msurface_t		**firstVisSurface;
-	msurface_t		**firstFragmentSurface;
+	unsigned		numFragmentSurfaces;
+	unsigned		*fragmentSurfaces;
 } mleaf_t;
 
 typedef struct

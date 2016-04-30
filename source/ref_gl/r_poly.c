@@ -406,28 +406,26 @@ bool R_SurfPotentiallyFragmented( const msurface_t *surf )
 */
 static void R_RecursiveFragmentNode( void )
 {
+	unsigned i;
 	int stackdepth = 0;
 	float dist;
 	bool inside;
 	mnode_t	*node, *localstack[2048];
 	mleaf_t	*leaf;
-	msurface_t *surf, **mark;
+	msurface_t *surf;
 
 	for( node = rsh.worldBrushModel->nodes, stackdepth = 0;; )
 	{
 		if( node->plane == NULL )
 		{
 			leaf = ( mleaf_t * )node;
-			mark = leaf->firstFragmentSurface;
-			if( !mark )
-				goto nextNodeOnStack;
-
-			do
+			
+			for( i = 0; i < leaf->numFragmentSurfaces; i++ )
 			{
 				if( numFragmentVerts == maxFragmentVerts || numClippedFragments == maxClippedFragments )
 					return; // already reached the limit
 
-				surf = *mark++;
+				surf = rsh.worldBrushModel->surfaces + leaf->fragmentSurfaces[i];
 				if( surf->fragmentframe == r_fragmentframecount )
 					continue;
 				surf->fragmentframe = r_fragmentframecount;
@@ -445,12 +443,11 @@ static void R_RecursiveFragmentNode( void )
 				//if( inside )
 				//	return;
 				(void)inside; // hush compiler warning
-			} while( *mark );
+			}
 
 			if( numFragmentVerts == maxFragmentVerts || numClippedFragments == maxClippedFragments )
 				return; // already reached the limit
 
-nextNodeOnStack:
 			if( !stackdepth )
 				break;
 			node = localstack[--stackdepth];

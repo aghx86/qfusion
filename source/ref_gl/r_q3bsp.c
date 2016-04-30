@@ -1134,7 +1134,6 @@ static void Mod_LoadNodes( const lump_t *l )
 	int i, j, count, p;
 	dnode_t	*in;
 	mnode_t	*out;
-	bool badBounds;
 
 	in = ( void * )( mod_base + l->fileofs );
 	if( l->filelen % sizeof( *in ) )
@@ -1156,22 +1155,6 @@ static void Mod_LoadNodes( const lump_t *l )
 				out->children[j] = loadbmodel->nodes + p;
 			else
 				out->children[j] = ( mnode_t * )( loadbmodel->leafs + ( -1 - p ) );
-		}
-
-		badBounds = false;
-		for( j = 0; j < 3; j++ )
-		{
-			out->mins[j] = (float)LittleLong( in->mins[j] );
-			out->maxs[j] = (float)LittleLong( in->maxs[j] );
-			if( out->mins[j] > out->maxs[j] )
-				badBounds = true;
-		}
-
-		if( badBounds || VectorCompare( out->mins, out->maxs ) )
-		{
-			ri.Com_DPrintf( S_COLOR_YELLOW "WARNING: bad node %i bounds:\n", i );
-			ri.Com_DPrintf( S_COLOR_YELLOW "mins: %i %i %i\n", Q_rint( out->mins[0] ), Q_rint( out->mins[1] ), Q_rint( out->mins[2] ) );
-			ri.Com_DPrintf( S_COLOR_YELLOW "maxs: %i %i %i\n", Q_rint( out->maxs[0] ), Q_rint( out->maxs[1] ), Q_rint( out->maxs[2] ) );
 		}
 	}
 }
@@ -1279,7 +1262,7 @@ static void Mod_LoadFogs( const lump_t *l, const lump_t *brLump, const lump_t *b
 */
 static void Mod_LoadLeafs( const lump_t *l, const lump_t *msLump )
 {
-	int i, j, k, count, countMarkSurfaces;
+	int i, j, count, countMarkSurfaces;
 	dleaf_t	*in;
 	mleaf_t	*out;
 	size_t size;
@@ -1347,23 +1330,25 @@ static void Mod_LoadLeafs( const lump_t *l, const lump_t *msLump )
 		numVisSurfaces = numMarkSurfaces;
 		numFragmentSurfaces = numMarkSurfaces;
 
-		size = ((numVisSurfaces + 1) + (numFragmentSurfaces + 1)) * sizeof( msurface_t * );
+		size = (numVisSurfaces + numFragmentSurfaces) * sizeof( unsigned );
 		buffer = ( uint8_t * )Mod_Malloc( loadmodel, size );
 
-		out->firstVisSurface = ( msurface_t ** )buffer;
-		buffer += ( numVisSurfaces + 1 ) * sizeof( msurface_t * );
+		out->visSurfaces = ( unsigned * )buffer;
+		buffer += numVisSurfaces * sizeof( unsigned );
 
-		out->firstFragmentSurface = ( msurface_t ** )buffer;
-		buffer += ( numFragmentSurfaces + 1 ) * sizeof( msurface_t * );
+		out->fragmentSurfaces = ( unsigned * )buffer;
+		buffer += numFragmentSurfaces * sizeof( unsigned );
 
 		numVisSurfaces = numFragmentSurfaces = 0;
 		for( j = 0; j < numMarkSurfaces; j++ )
 		{
-			k = LittleLong( inMarkSurfaces[firstMarkSurface + j] );
-
-			out->firstVisSurface[numVisSurfaces++] = loadbmodel->surfaces + k;
-			out->firstFragmentSurface[numFragmentSurfaces++] = loadbmodel->surfaces + k;
+			unsigned k = LittleLong( inMarkSurfaces[firstMarkSurface + j] );
+			out->visSurfaces[numVisSurfaces++] = k;
+			out->fragmentSurfaces[numFragmentSurfaces++] = k;
 		}
+
+		out->numVisSurfaces = numVisSurfaces;
+		out->numFragmentSurfaces = numFragmentSurfaces;
 	}
 }
 

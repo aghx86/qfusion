@@ -966,8 +966,6 @@ static void R_SetupFrame( void )
 
 		if( rf.worldModelSequence != rsh.worldModelSequence ) {
 			rf.frameCount = 0;
-			rf.viewcluster = -1; // force R_MarkLeaves
-			rf.haveOldAreabits = false;
 			rf.worldModelSequence = rsh.worldModelSequence;
 
 			if( !rf.numWorldSurfVis ) {
@@ -977,6 +975,15 @@ static void R_SetupFrame( void )
 			else if( rf.numWorldSurfVis < rsh.worldBrushModel->numsurfaces ) {
 				rf.worldSurfVis = R_Realloc( (void *)rf.worldSurfVis, rsh.worldBrushModel->numsurfaces * sizeof( *rf.worldSurfVis ) );
 				rf.numWorldSurfVis = rsh.worldBrushModel->numsurfaces;
+			}
+
+			if( !rf.numWorldLeafVis ) {
+				rf.worldLeafVis = R_Malloc( rsh.worldBrushModel->numvisleafs * sizeof( *rf.worldLeafVis ) );
+				rf.numWorldLeafVis = rsh.worldBrushModel->numvisleafs;
+			}
+			else if( rf.numWorldSurfVis < rsh.worldBrushModel->numvisleafs ) {
+				rf.worldLeafVis = R_Realloc( (void *)rf.worldLeafVis, rsh.worldBrushModel->numvisleafs * sizeof( *rf.worldLeafVis ) );
+				rf.numWorldLeafVis = rsh.worldBrushModel->numvisleafs;
 			}
 
 			// load all world images if not yet
@@ -989,7 +996,6 @@ static void R_SetupFrame( void )
 		viewarea = -1;
 	}
 
-	rf.oldviewcluster = rf.viewcluster;
 	rf.viewcluster = viewcluster;
 	rf.viewarea = viewarea;
 
@@ -1256,7 +1262,6 @@ void R_RenderView( const refdef_t *fd )
 	if( !shadowMap ) {
 		if( r_speeds->integer )
 			msec = ri.Sys_Milliseconds();
-		R_MarkLeaves();
 		if( r_speeds->integer )
 			rf.stats.t_mark_leaves += ( ri.Sys_Milliseconds() - msec );
 

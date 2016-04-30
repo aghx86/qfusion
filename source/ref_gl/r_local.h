@@ -300,12 +300,7 @@ typedef struct
 	// used for dlight push checking
 	unsigned int	frameCount;
 
-	// bumped when going to a new PVS
-	unsigned int	pvsframecount;
-
-	int				viewcluster, oldviewcluster, viewarea;
-	uint8_t			oldAreabits[MAX_MAP_AREAS*(MAX_MAP_AREAS+7)/8];
-	bool			haveOldAreabits;
+	int				viewcluster, viewarea;
 
 	struct {
 		unsigned int	c_brush_polys, c_world_leafs;
@@ -331,7 +326,10 @@ typedef struct
 	qmutex_t		*debugSurfaceLock;
 
 	unsigned int	numWorldSurfVis;
-	volatile unsigned char	*worldSurfVis;
+	volatile unsigned char *worldSurfVis;
+
+	unsigned int	numWorldLeafVis;
+	volatile unsigned char *worldLeafVis;
 
 	char			drawBuffer[32];
 	bool			newDrawBuffer;
@@ -720,7 +718,6 @@ void R_RenderScene( const refdef_t *fd );
 //
 #define MAX_SURF_QUERIES		0x1E0
 
-void		R_MarkLeaves( void );
 void		R_DrawWorld( void );
 bool	R_SurfPotentiallyVisible( const msurface_t *surf );
 bool	R_SurfPotentiallyShadowed( const msurface_t *surf );
@@ -851,18 +848,15 @@ typedef struct
 
 	float			lightingIntensity;
 
-	bool		lightmapsPacking;
-	bool		lightmapArrays;			// true if using array textures for lightmaps
+	bool			lightmapsPacking;
+	bool			lightmapArrays;			// true if using array textures for lightmaps
 	int				maxLightmapSize;		// biggest dimension of the largest lightmap
-	bool		deluxeMaps;				// true if there are valid deluxemaps in the .bsp
-	bool		deluxeMappingEnabled;	// true if deluxeMaps is true and r_lighting_deluxemaps->integer != 0
+	bool			deluxeMaps;				// true if there are valid deluxemaps in the .bsp
+	bool			deluxeMappingEnabled;	// true if deluxeMaps is true and r_lighting_deluxemaps->integer != 0
 
-	bool		depthWritingSky;		// draw invisible sky surfaces with writing to depth buffer enabled
-	bool		checkWaterCrossing;		// check above and below so crossing solid water doesn't draw wrong
+	bool			forceClear;
 
-	bool		forceClear;
-
-	bool		forceWorldOutlines;
+	bool			forceWorldOutlines;
 } mapconfig_t;
 
 extern mapconfig_t	mapConfig;

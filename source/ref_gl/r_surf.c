@@ -264,6 +264,7 @@ static void R_AddSurfaceVBOSlice( const msurface_t *surf, int offset )
 static void R_AddSurfaceToDrawList( const entity_t *e, const msurface_t *surf, const mfog_t *fog,
 	unsigned int dlightBits, unsigned shadowBits, const vec3_t origin )
 {
+	int i;
 	shader_t *shader;
 	drawSurfaceBSP_t *drawSurf = surf->drawSurf;
 	portalSurface_t *portalSurface = NULL;
@@ -298,8 +299,7 @@ static void R_AddSurfaceToDrawList( const entity_t *e, const msurface_t *surf, c
 				}
 			}
 
-			rn.numVisSurfaces++;
-			return;
+			goto done;
 		}
 	}
 	
@@ -377,8 +377,19 @@ static void R_AddSurfaceToDrawList( const entity_t *e, const msurface_t *surf, c
 		}
 	}
 
-	rf.stats.c_brush_polys++;
+done:
+	// add surface bounds to view bounds
+	for( i = 0; i < 3; i++ )
+	{
+		rn.visMins[i] = min( rn.visMins[i], surf->mins[i] );
+		rn.visMaxs[i] = max( rn.visMaxs[i], surf->maxs[i] );
+	}
+
+	rn.dlightBits |= dlightBits;
+	rn.shadowBits |= shadowBits;
 	rn.numVisSurfaces++;
+
+	rf.stats.c_brush_polys++;
 }
 
 /*
@@ -522,9 +533,9 @@ WORLD MODEL
 */
 
 /*
-* R_AddOrUpdateSurface
+* R_AddOrUpdateDrawSurface
 */
-static void R_AddOrUpdateSurface( msurface_t *surf, unsigned int dlightBits, unsigned int shadowBits )
+static void R_AddOrUpdateDrawSurface( msurface_t *surf, unsigned int dlightBits, unsigned int shadowBits )
 {
 	unsigned int newDlightBits = dlightBits;
 	unsigned int newShadowBits = shadowBits;
@@ -538,171 +549,93 @@ static void R_AddOrUpdateSurface( msurface_t *surf, unsigned int dlightBits, uns
 	newDlightBits = R_SurfaceDlightBits( surf, newDlightBits );
 	newShadowBits = R_SurfaceShadowBits( surf, newShadowBits );
 
-//	if( surf->visFrame != rf.frameCount || newDlightBits || newShadowBits ) {
-		R_AddSurfaceToDrawList( rsc.worldent, surf, surf->fog, 
-			newDlightBits, newShadowBits, NULL );
-//	}
+	R_AddSurfaceToDrawList( rsc.worldent, surf, surf->fog, newDlightBits, newShadowBits, NULL );
 }
 
 /*
-* R_MarkLeafSurfaces
+* R_CountVisLeaves
 */
-static void R_MarkLeafSurfaces( msurface_t **mark, unsigned int clipFlags, 
-	unsigned int dlightBits, unsigned int shadowBits )
+static void R_CountVisLeaves( void )
 {
-	msurface_t *surf;
+	unsigned i;
+	mleaf_t *leaf;
 
-	do
+	for( i = 0; i < rsh.worldBrushModel->numvisleafs; i++ )
 	{
-		surf = *mark++;
-		if( !R_CullSurface( rsc.worldent, surf, clipFlags ) ) {
-			R_AddOrUpdateSurface( surf, dlightBits, shadowBits );
+		if( !rf.worldLeafVis[i] ) {
+			continue;
 		}
-	} while( *mark );
-}
 
-/*
-* R_RecursiveWorldNode
-*/
-static void R_RecursiveWorldNode( mnode_t *node, unsigned int clipFlags, 
-	unsigned int dlightBits, unsigned int shadowBits )
-{
-	unsigned int i;
-	unsigned int dlightBits1;
-	unsigned int shadowBits1;
-	unsigned int bit;
-	const cplane_t *clipplane;
-	mleaf_t	*pleaf;
-
-	while( 1 )
-	{
-		if( node->pvsframe != rf.pvsframecount )
-			return;
-
-		if( clipFlags )
+		leaf = rsh.worldBrushModel->visleafs[i];
+		if( r_leafvis->integer && !( rn.renderFlags & RF_NONVIEWERREF ) )
 		{
-			for( i = sizeof( rn.frustum )/sizeof( rn.frustum[0] ), bit = 1, clipplane = rn.frustum; i > 0; i--, bit<<=1, clipplane++ )
-			{
-				if( clipFlags & bit )
-				{
-					int clipped = BoxOnPlaneSide( node->mins, node->maxs, clipplane );
-					if( clipped == 2 )
-						return;
-					else if( clipped == 1 )
-						clipFlags &= ~bit; // node is entirely on screen
-				}
-			}
+			const byte_vec4_t color = { 255, 0, 0, 255 };
+			R_AddDebugBounds( leaf->mins, leaf->maxs, color );
 		}
 
-		if( !node->plane )
-			break;
-
-		dlightBits1 = 0;
-		if( dlightBits )
-		{
-			float dist;
-			unsigned int checkBits = dlightBits;
-
-			for( i = 0, bit = 1; i < rsc.numDlights; i++, bit <<= 1 )
-			{
-				dlight_t *dl = rsc.dlights + i;
-				if( dlightBits & bit )
-				{
-					dist = PlaneDiff( dl->origin, node->plane );
-					if( dist < -dl->intensity )
-						dlightBits &= ~bit;
-					if( dist < dl->intensity )
-						dlightBits1 |= bit;
-
-					checkBits &= ~bit;
-					if( !checkBits )
-						break;
-				}
-			}
-		}
-
-		shadowBits1 = 0;
-		if( shadowBits )
-		{
-			float dist;
-			unsigned int checkBits = shadowBits;
-
-			for( i = 0; i < rsc.numShadowGroups; i++ )
-			{
-				shadowGroup_t *group = rsc.shadowGroups + i;
-				bit = group->bit;
-				if( checkBits & bit )
-				{
-					dist = PlaneDiff( group->visOrigin, node->plane );
-					if( dist < -group->visRadius )
-						shadowBits &= ~bit;
-					if( dist < group->visRadius )
-						shadowBits1 |= bit;
-
-					checkBits &= ~bit;
-					if( !checkBits )
-						break;
-				}
-			}
-		}
-
-		R_RecursiveWorldNode( node->children[0], clipFlags, dlightBits, shadowBits );
-
-		node = node->children[1];
-		dlightBits = dlightBits1;
-		shadowBits = shadowBits1;
-	}
-
-	// if a leaf node, draw stuff
-	pleaf = ( mleaf_t * )node;
-	pleaf->visframe = rf.frameCount;
-
-	// add leaf bounds to view bounds
-	for( i = 0; i < 3; i++ )
-	{
-		rn.visMins[i] = min( rn.visMins[i], pleaf->mins[i] );
-		rn.visMaxs[i] = max( rn.visMaxs[i], pleaf->maxs[i] );
-	}
-
-	rn.dlightBits |= dlightBits;
-	rn.shadowBits |= shadowBits;
-
-	R_MarkLeafSurfaces( pleaf->firstVisSurface, clipFlags, dlightBits, shadowBits );
-	rf.stats.c_world_leafs++;
-
-	if( r_leafvis->integer && !( rn.renderFlags & RF_NONVIEWERREF ) )
-	{
-		const byte_vec4_t color = { 255, 0, 0, 255 };
-		R_AddDebugBounds( pleaf->mins, pleaf->maxs, color );
+		rf.stats.c_world_leafs++;
 	}
 }
-
-//==================================================================================
 
 /*
 * R_CullVisLeaves
 */
 static void R_CullVisLeaves( unsigned firstLeaf, unsigned stride, unsigned clipFlags )
 {
-	unsigned i;
+	unsigned i, j;
 	mleaf_t	*leaf;
+	uint8_t *pvs;
+	int rdflags;
+	uint8_t *areabits;
+	int arearowbytes, areabytes;
+	bool haveareabits, novis;
+
+	if( rn.renderFlags & RF_SHADOWMAPVIEW )
+		return;
+
+	novis = rn.renderFlags & RF_NOVIS || rf.viewcluster == -1 || !rsh.worldBrushModel->pvs;
+	rdflags = rn.refdef.rdflags;
+
+	haveareabits = rn.refdef.areabits != NULL;
+	arearowbytes = ((rsh.worldBrushModel->numareas+7)/8);
+	areabytes = arearowbytes;
+#ifdef AREAPORTALS_MATRIX
+	areabytes *= rsh.worldBrushModel->numareas;
+#endif
+
+	pvs = Mod_ClusterPVS( rf.viewcluster, rsh.worldModel );
+	if( rf.viewarea > -1 && rn.refdef.areabits )
+#ifdef AREAPORTALS_MATRIX
+		areabits = rn.refdef.areabits + rf.viewarea * arearowbytes;
+#else
+		areabits = rn.refdef.areabits;
+#endif
+	else
+		areabits = NULL;
 
 	for( i = firstLeaf; i < rsh.worldBrushModel->numvisleafs; i += stride )
 	{
-		msurface_t *surf, **mark;
-
 		leaf = rsh.worldBrushModel->visleafs[i];
-		if( leaf->pvsframe != rf.pvsframecount )
-			continue;
+		if( !novis )
+		{
+			// check for door connected areas
+			if( areabits )
+			{
+				if( leaf->area < 0 || !( areabits[leaf->area>>3] & ( 1<<( leaf->area&7 ) ) ) )
+					continue; // not visible
+			}
+
+			if( !( pvs[leaf->cluster>>3] & ( 1<<( leaf->cluster&7 ) ) ) )
+				continue; // not visible
+		}
+
 		if( R_CullBox( leaf->mins, leaf->maxs, clipFlags ) )
 			continue;
-		
-		mark = leaf->firstVisSurface;
-		do
-		{
-			surf = *mark++;
-			rf.worldSurfVis[surf - rsh.worldBrushModel->surfaces] = 1;
-		} while( *mark );
+
+		for( j = 0; j < leaf->numVisSurfaces; j++ )
+			rf.worldSurfVis[leaf->visSurfaces[j]] = 1;
+
+		rf.worldLeafVis[i] = 1;
 	}
 }
 
@@ -712,16 +645,29 @@ static void R_CullVisLeaves( unsigned firstLeaf, unsigned stride, unsigned clipF
 static void R_CullVisSurfaces( unsigned firstSurf, unsigned stride, unsigned clipFlags )
 {
 	unsigned i;
-	msurface_t *surf;
 
 	for( i = firstSurf; i < rsh.worldBrushModel->numsurfaces; i += stride ) {
-		surf = rsh.worldBrushModel->surfaces + i;
 		if( !rf.worldSurfVis[i] ) {
 			continue;
 		}
-		if( R_CullSurface( rsc.worldent, surf, clipFlags ) ) {
+		if( R_CullSurface( rsc.worldent, rsh.worldBrushModel->surfaces + i, clipFlags ) ) {
 			rf.worldSurfVis[i] = 0;
 		}
+	}
+}
+
+/*
+* R_DrawVisSurfaces
+*/
+static void R_DrawVisSurfaces( unsigned dlightBits, unsigned shadowBits )
+{
+	unsigned i;
+
+	for( i = 0; i < rsh.worldBrushModel->numsurfaces; i++ ) {
+		if( !rf.worldSurfVis[i] ) {
+			continue;
+		}
+		R_AddOrUpdateDrawSurface( rsh.worldBrushModel->surfaces + i, dlightBits, shadowBits );
 	}
 }
 
@@ -799,208 +745,49 @@ void R_DrawWorld( void )
 		}
 	}
 
-	rn.dlightBits = dlightBits;
-	rn.shadowBits = shadowBits;
+	rn.dlightBits = 0;
+	rn.shadowBits = 0;
 
 	if( r_speeds->integer )
 		msec = ri.Sys_Milliseconds();
 
-	if( r_temp1->integer )
+	if( 1 )
 	{
-		int ff;
+		jobarg_t ja = { .uarg = clipFlags };
 		unsigned m1, m2, m3, m4, m5, m6;
 
-#if 1
 		m1 = ri.Sys_Milliseconds();
-		memset( (void *)rf.worldSurfVis, 0, rsh.worldBrushModel->numsurfaces );
-
-		if( r_temp1->integer == 2 )
+		if( rsh.worldBrushModel->numvisleafs > rsh.worldBrushModel->numsurfaces )
 		{
-			jobarg_t ja = { .uarg = clipFlags };
+			memset( (void *)rf.worldSurfVis, 1, rsh.worldBrushModel->numsurfaces * sizeof( *rf.worldSurfVis ) );
+			memset( (void *)rf.worldLeafVis, 1, rsh.worldBrushModel->numvisleafs * sizeof( *rf.worldLeafVis ) );
+		}
+		else
+		{
+			memset( (void *)rf.worldSurfVis, 0, rsh.worldBrushModel->numsurfaces * sizeof( *rf.worldSurfVis ) );
+			memset( (void *)rf.worldLeafVis, 0, rsh.worldBrushModel->numvisleafs * sizeof( *rf.worldLeafVis ) );
 
 			RJ_ScheduleJob( &R_CullVisLeavesJob, &ja, rsh.worldBrushModel->numvisleafs );
 			RJ_CompleteJobs();
 		}
-		else {
-			R_CullVisLeaves( 0, 1, clipFlags );
-		}
-		
 		m2 = ri.Sys_Milliseconds();
-#else
-#endif
+
 		m3 = ri.Sys_Milliseconds();
-		if( r_temp1->integer == 2 )
-		{
-			jobarg_t ja = { .uarg = clipFlags };
+		RJ_ScheduleJob( &R_CullVisSurfacesJob, &ja, rsh.worldBrushModel->numsurfaces );
 
-			RJ_ScheduleJob( &R_CullVisSurfacesJob, &ja, rsh.worldBrushModel->numsurfaces );
-			RJ_CompleteJobs();
-		}
-		else {
-			R_CullVisSurfaces( 0, 1, clipFlags );
-		}
+		R_CountVisLeaves();
 
+		RJ_CompleteJobs();
 		m4 = ri.Sys_Milliseconds();
 
-		if( r_temp1->integer > 100 ) {
-			ff = r_temp1->integer;
-		}
-		else {
-			ff = 1;
-		}
-
 		m5 = ri.Sys_Milliseconds();
-		while( ff > 0 ) {
-			msurface_t *surf;
-			for( i = 0, surf = rsh.worldBrushModel->surfaces; i < rsh.worldBrushModel->numsurfaces; i++, surf++ ) {
-				if( !rf.worldSurfVis[i] ) {
-					continue;
-				}
-				R_AddOrUpdateSurface( surf, dlightBits, shadowBits );
-			}
-			ff--;
-		}
+		R_DrawVisSurfaces( dlightBits, shadowBits );
 		m6 = ri.Sys_Milliseconds();
 
-		if( r_temp1->integer != 1 )
-			Com_Printf( "%d %d %d %d\n", m2 - m1, m4 - m3, m6 - m5,  rsh.worldBrushModel->numsurfaces );
-	}
-	else
-	{
-		R_RecursiveWorldNode( rsh.worldBrushModel->nodes, clipFlags, dlightBits, shadowBits );
+		if( r_temp1->integer )
+		Com_Printf( "%d %d %d %d %d\n", m2 - m1, m4 - m3, m6 - m5, rsh.worldBrushModel->numvisleafs,  rsh.worldBrushModel->numsurfaces );
 	}
 
 	if( r_speeds->integer )
 		rf.stats.t_world_node += ri.Sys_Milliseconds() - msec;
-}
-
-/*
-* R_MarkLeaves
-* 
-* Mark the leaves and nodes that are in the PVS for the current cluster
-*/
-void R_MarkLeaves( void )
-{
-	uint8_t *pvs;
-	unsigned int i;
-	int rdflags;
-	mleaf_t	*leaf, **pleaf;
-	mnode_t *node;
-	uint8_t *areabits;
-	int cluster;
-	uint8_t fatpvs[MAX_MAP_LEAFS/8];
-	int arearowbytes, areabytes;
-	bool haveareabits;
-
-	rdflags = rn.refdef.rdflags;
-	if( rdflags & RDF_NOWORLDMODEL )
-		return;
-	if( !rsh.worldModel )
-		return;
-
-	haveareabits = rn.refdef.areabits != NULL;
-	arearowbytes = ((rsh.worldBrushModel->numareas+7)/8);
-	areabytes = arearowbytes;
-#ifdef AREAPORTALS_MATRIX
-	areabytes *= rsh.worldBrushModel->numareas;
-#endif
-
-	if( rf.oldviewcluster == rf.viewcluster && !(rn.renderFlags & RF_NOVIS) && rf.viewcluster != -1 && rf.oldviewcluster != -1 ) {
-		// compare area bits from previous frame
-		if( !haveareabits && rf.haveOldAreabits == false )
-			return;
-		if( haveareabits && rf.haveOldAreabits == true && memcmp( rf.oldAreabits, rn.refdef.areabits, areabytes ) == 0 )
-			return;
-	}
-
-	if( rn.renderFlags & RF_SHADOWMAPVIEW )
-		return;
-
-	// development aid to let you run around and see exactly where
-	// the pvs ends
-	if( r_lockpvs->integer )
-		return;
-
-	rf.pvsframecount++;
-	rf.oldviewcluster = rf.viewcluster;
-	rf.haveOldAreabits = haveareabits;
-	if( haveareabits )
-		memcpy( rf.oldAreabits, rn.refdef.areabits, areabytes );
-
-	if( rn.renderFlags & RF_NOVIS || rf.viewcluster == -1 || !rsh.worldBrushModel->pvs )
-	{
-		// mark everything
-		for( pleaf = rsh.worldBrushModel->visleafs, leaf = *pleaf; leaf; leaf = *pleaf++ )
-			leaf->pvsframe = rf.pvsframecount;
-		for( i = 0, node = rsh.worldBrushModel->nodes; i < rsh.worldBrushModel->numnodes; i++, node++ )
-			node->pvsframe = rf.pvsframecount;
-		return;
-	}
-
-	pvs = Mod_ClusterPVS( rf.viewcluster, rsh.worldModel );
-	if( rf.viewarea > -1 && rn.refdef.areabits )
-#ifdef AREAPORTALS_MATRIX
-		areabits = rn.refdef.areabits + rf.viewarea * arearowbytes;
-#else
-		areabits = rn.refdef.areabits;
-#endif
-	else
-		areabits = NULL;
-
-	// may have to combine two clusters because of solid water boundaries
-	if( mapConfig.checkWaterCrossing && ( rdflags & RDF_CROSSINGWATER ) )
-	{
-		unsigned c;
-		vec3_t pvsOrigin2;
-		int viewcluster2;
-
-		VectorCopy( rn.pvsOrigin, pvsOrigin2 );
-		if( rdflags & RDF_UNDERWATER )
-		{
-			// look up a bit
-			pvsOrigin2[2] += 9;
-		}
-		else
-		{
-			// look down a bit
-			pvsOrigin2[2] -= 9;
-		}
-
-		leaf = Mod_PointInLeaf( pvsOrigin2, rsh.worldModel );
-		viewcluster2 = leaf->cluster;
-		if( viewcluster2 > -1 && viewcluster2 != rf.viewcluster && !( pvs[viewcluster2>>3] & ( 1<<( viewcluster2&7 ) ) ) )
-		{
-			memcpy( fatpvs, pvs, ( rsh.worldBrushModel->pvs->numclusters + 7 ) / 8 ); // same as pvs->rowsize
-			pvs = Mod_ClusterPVS( viewcluster2, rsh.worldModel );
-			c = ( rsh.worldBrushModel->pvs->numclusters + 31 ) / 32;
-			for( i = 0; i < c; i++ )
-				(( int * )fatpvs)[i] |= (( int * )pvs)[i];
-			pvs = fatpvs;
-		}
-	}
-
-	for( pleaf = rsh.worldBrushModel->visleafs, leaf = *pleaf; leaf; leaf = *pleaf++ )
-	{
-		cluster = leaf->cluster;
-
-		// check for door connected areas
-		if( areabits )
-		{
-			if( leaf->area < 0 || !( areabits[leaf->area>>3] & ( 1<<( leaf->area&7 ) ) ) )
-				continue; // not visible
-		}
-
-		if( pvs[cluster>>3] & ( 1<<( cluster&7 ) ) )
-		{
-			node = (mnode_t *)leaf;
-			do
-			{
-				if( node->pvsframe == rf.pvsframecount )
-					break;
-				node->pvsframe = rf.pvsframecount;
-				node = node->parent;
-			}
-			while( node );
-		}
-	}
 }
