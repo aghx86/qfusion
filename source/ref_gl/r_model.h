@@ -66,7 +66,6 @@ typedef struct mshaderref_s
 
 typedef struct msurface_s
 {
-	unsigned int	visFrame;			// should be drawn when node is crossed
 	unsigned int	facetype, flags;
 
 	drawSurfaceBSP_t *drawSurf;
@@ -76,7 +75,7 @@ typedef struct msurface_s
 	shader_t		*shader;
 	mesh_t			*mesh;
 	mfog_t			*fog;
-	cplane_t		*plane;
+	cplane_t		plane;
 
 	union
 	{

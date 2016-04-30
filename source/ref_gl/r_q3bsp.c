@@ -360,9 +360,6 @@ static void Mod_LoadFaces( const lump_t *l )
 			}			
 		}
 
-		// add this super style
-		out->superLightStyle = R_AddSuperLightStyle( loadmodel, lightmaps, lightmapStyles, vertexStyles, lmRects );
-
 		// load shader
 		shaderRef = loadmodel_shaderrefs + LittleLong( in->shadernum );
 		if( lightmapStyles[0] == 255 ) {
@@ -370,9 +367,15 @@ static void Mod_LoadFaces( const lump_t *l )
 		} else {
 			shaderType = SHADER_TYPE_DELUXEMAP;
 		}
-		
+
 		out->shader = shaderRef->shaders[shaderType-SHADER_TYPE_BSP_MIN];
-		out->flags = shaderRef->flags;
+		out->flags = shaderRef->flags & ~SURF_NOLIGHTMAP;
+		if( lightmapStyles[0] == 255 ) {
+			out->flags |= SURF_NOLIGHTMAP;
+		}
+
+		// add this super style
+		out->superLightStyle = R_AddSuperLightStyle( loadmodel, lightmaps, lightmapStyles, vertexStyles, lmRects );
 
 		fogNum = LittleLong( in->fognum );
 		if( fogNum >= 0 && ( (unsigned)fogNum < loadbmodel->numfogs ) )
@@ -934,8 +937,9 @@ static mesh_t *Mod_CreateMeshForSurface( const rdface_t *in, msurface_t *out, in
 	case FACETYPE_TRISURF:
 	case FACETYPE_FOLIAGE:
 		{
-			int j, numVerts, firstVert, numElems, firstElem;
-			int numFoliageInstances;
+			unsigned j;
+			unsigned numVerts, firstVert, numElems, firstElem;
+			unsigned numFoliageInstances;
 			bool hasLightmap[MAX_LIGHTMAPS];
 
 			if( out->facetype == FACETYPE_FOLIAGE )
@@ -951,7 +955,6 @@ static mesh_t *Mod_CreateMeshForSurface( const rdface_t *in, msurface_t *out, in
 			}
 
 			firstVert = LittleLong( in->firstvert );
-
 			numElems = LittleLong( in->numelems );
 			firstElem = LittleLong( in->firstelem );
 
@@ -975,8 +978,6 @@ static mesh_t *Mod_CreateMeshForSurface( const rdface_t *in, msurface_t *out, in
 			for( j = 0; j < MAX_LIGHTMAPS && in->vertexStyles[j] != 255; j++ )
 				bufSize += numVerts * sizeof( byte_vec4_t );
 			bufSize = ALIGN( bufSize, sizeof( elem_t ) ) + numElems * sizeof( elem_t );
-			if( out->facetype == FACETYPE_PLANAR )
-				bufSize = ALIGN( bufSize, 16 ) + sizeof( cplane_t );
 			bufSize = ALIGN( bufSize, 16 ) + numFoliageInstances * sizeof( instancePoint_t );
 
 			buffer = ( uint8_t * )Mod_Malloc( loadmodel, bufSize );
@@ -1031,25 +1032,19 @@ static mesh_t *Mod_CreateMeshForSurface( const rdface_t *in, msurface_t *out, in
 
 			if( out->facetype == FACETYPE_PLANAR )
 			{
-				cplane_t *plane;
 				vec3_t v[3];
 
 				// don't trust q3map, recalculate surface plane from the first triangle
-				bufPos = ALIGN( bufPos, 16 );
-				plane = out->plane = ( cplane_t * )( buffer + bufPos ); bufPos += sizeof( cplane_t );
-
-				// do not trust compiler on surface normal
 				for( j = 0; j < 3; j++ ) {
 					VectorCopy( mesh->xyzArray[mesh->elems[j]], v[j] );
 				}
 
-				PlaneFromPoints( v, plane );
-				CategorizePlane( plane );
+				PlaneFromPoints( v, &out->plane );
+				CategorizePlane( &out->plane );
 			}
 
 			if( numFoliageInstances > 0 )
 			{
-				unsigned int j;
 				vec3_t *origins = loadmodel_xyz_array + firstVert, *origin;
 				instancePoint_t *instance;
 

@@ -328,7 +328,10 @@ typedef struct
 	
 	msurface_t		*debugSurface;
 	qmutex_t		*debugSurfaceLock;
-	
+
+	unsigned int	numWorldSurfVis;
+	volatile unsigned char	*worldSurfVis;
+
 	char			drawBuffer[32];
 	bool			newDrawBuffer;
 } r_globals_t;

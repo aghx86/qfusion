@@ -970,6 +970,15 @@ static void R_SetupFrame( void )
 			rf.haveOldAreabits = false;
 			rf.worldModelSequence = rsh.worldModelSequence;
 
+			if( !rf.numWorldSurfVis ) {
+				rf.worldSurfVis = R_Malloc( rsh.worldBrushModel->numsurfaces * sizeof( *rf.worldSurfVis ) );
+				rf.numWorldSurfVis = rsh.worldBrushModel->numsurfaces;
+			}
+			else if( rf.numWorldSurfVis < rsh.worldBrushModel->numsurfaces ) {
+				rf.worldSurfVis = R_Realloc( (void *)rf.worldSurfVis, rsh.worldBrushModel->numsurfaces * sizeof( *rf.worldSurfVis ) );
+				rf.numWorldSurfVis = rsh.worldBrushModel->numsurfaces;
+			}
+
 			// load all world images if not yet
 			R_FinishLoadingImages();
 		}

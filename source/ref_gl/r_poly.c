@@ -290,10 +290,10 @@ static bool R_PlanarSurfClipFragment( msurface_t *surf, vec3_t normal )
 	vec3_t dir1, dir2, snorm;
 	bool planar;
 
-	planar = surf->plane && !VectorCompare( surf->plane->normal, vec3_origin );
+	planar = surf->facetype == FACETYPE_PLANAR && !VectorCompare( surf->plane.normal, vec3_origin );
 	if( planar )
 	{
-		VectorCopy( surf->plane->normal, snorm );
+		VectorCopy( surf->plane.normal, snorm );
 		if( DotProduct( normal, snorm ) < 0.5 )
 			return false; // greater than 60 degrees
 	}
