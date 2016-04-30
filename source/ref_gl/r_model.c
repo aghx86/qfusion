@@ -182,6 +182,7 @@ static void Mod_CreateVisLeafs( model_t *mod )
 		loadbmodel->visleafs[numVisLeafs++] = leaf;
 	}
 
+	loadbmodel->numvisleafs = numVisLeafs;
 	loadbmodel->visleafs[numVisLeafs] = NULL;
 }
 

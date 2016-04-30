@@ -680,6 +680,68 @@ static void R_RecursiveWorldNode( mnode_t *node, unsigned int clipFlags,
 //==================================================================================
 
 /*
+* R_CullVisLeaves
+*/
+static void R_CullVisLeaves( unsigned firstLeaf, unsigned stride, unsigned clipFlags )
+{
+	unsigned i;
+	mleaf_t	*leaf;
+
+	for( i = firstLeaf; i < rsh.worldBrushModel->numvisleafs; i += stride )
+	{
+		msurface_t *surf, **mark;
+
+		leaf = rsh.worldBrushModel->visleafs[i];
+		if( leaf->pvsframe != rf.pvsframecount )
+			continue;
+		if( R_CullBox( leaf->mins, leaf->maxs, clipFlags ) )
+			continue;
+		
+		mark = leaf->firstVisSurface;
+		do
+		{
+			surf = *mark++;
+			rf.worldSurfVis[surf - rsh.worldBrushModel->surfaces] = 1;
+		} while( *mark );
+	}
+}
+
+/*
+* R_CullVisSurfaces
+*/
+static void R_CullVisSurfaces( unsigned firstSurf, unsigned stride, unsigned clipFlags )
+{
+	unsigned i;
+	msurface_t *surf;
+
+	for( i = firstSurf; i < rsh.worldBrushModel->numsurfaces; i += stride ) {
+		surf = rsh.worldBrushModel->surfaces + i;
+		if( !rf.worldSurfVis[i] ) {
+			continue;
+		}
+		if( R_CullSurface( rsc.worldent, surf, clipFlags ) ) {
+			rf.worldSurfVis[i] = 0;
+		}
+	}
+}
+
+/*
+* R_CullVisLeavesJob
+*/
+static void R_CullVisLeavesJob( unsigned first, unsigned stride, jobarg_t *j )
+{
+	R_CullVisLeaves( first, stride, j->uarg );
+}
+
+/*
+* R_CullVisSurfacesJob
+*/
+static void R_CullVisSurfacesJob( unsigned first, unsigned stride, jobarg_t *j )
+{
+	R_CullVisSurfaces( first, stride, j->uarg );
+}
+
+/*
 * R_DrawWorld
 */
 void R_DrawWorld( void )
@@ -746,49 +808,38 @@ void R_DrawWorld( void )
 	if( r_temp1->integer )
 	{
 		int ff;
-		msurface_t *surf;
-		mleaf_t	*leaf, **pleaf;
 		unsigned m1, m2, m3, m4, m5, m6;
+
 #if 1
 		m1 = ri.Sys_Milliseconds();
 		memset( (void *)rf.worldSurfVis, 0, rsh.worldBrushModel->numsurfaces );
 
-		for( pleaf = rsh.worldBrushModel->visleafs, leaf = *pleaf; leaf; leaf = *pleaf++ )
+		if( r_temp1->integer == 2 )
 		{
-			msurface_t **mark;
+			jobarg_t ja = { .uarg = clipFlags };
 
-			if( leaf->pvsframe != rf.pvsframecount )
-				continue;
-			if( R_CullBox( leaf->mins, leaf->maxs, clipFlags ) )
-				continue;
-
-			mark = leaf->firstVisSurface;
-			do
-			{
-				surf = *mark++;
-				//if( rf.worldSurfVis[surf - rsh.worldBrushModel->surfaces] ) {
-				//	continue;
-				//}
-				//if( R_CullSurface( rsc.worldent, surf, clipFlags ) ) {
-				//	continue;
-				//}
-				rf.worldSurfVis[surf - rsh.worldBrushModel->surfaces] = 1;
-			} while( *mark );
+			RJ_ScheduleJob( &R_CullVisLeavesJob, &ja, rsh.worldBrushModel->numvisleafs );
+			RJ_CompleteJobs();
 		}
+		else {
+			R_CullVisLeaves( 0, 1, clipFlags );
+		}
+		
 		m2 = ri.Sys_Milliseconds();
 #else
 #endif
 		m3 = ri.Sys_Milliseconds();
-		for( i = 0, surf = rsh.worldBrushModel->surfaces; i < rsh.worldBrushModel->numsurfaces; i++, surf++ ) {
-			if( !rf.worldSurfVis[i] ) {
-				continue;
-			}
-			if( R_CullSurface( rsc.worldent, surf, clipFlags ) ) {
-				rf.worldSurfVis[i] = 0;
-				continue;
-			}
-			//R_AddOrUpdateSurface( surf, dlightBits, shadowBits );
+		if( r_temp1->integer == 2 )
+		{
+			jobarg_t ja = { .uarg = clipFlags };
+
+			RJ_ScheduleJob( &R_CullVisSurfacesJob, &ja, rsh.worldBrushModel->numsurfaces );
+			RJ_CompleteJobs();
 		}
+		else {
+			R_CullVisSurfaces( 0, 1, clipFlags );
+		}
+
 		m4 = ri.Sys_Milliseconds();
 
 		if( r_temp1->integer > 100 ) {
@@ -800,6 +851,7 @@ void R_DrawWorld( void )
 
 		m5 = ri.Sys_Milliseconds();
 		while( ff > 0 ) {
+			msurface_t *surf;
 			for( i = 0, surf = rsh.worldBrushModel->surfaces; i < rsh.worldBrushModel->numsurfaces; i++, surf++ ) {
 				if( !rf.worldSurfVis[i] ) {
 					continue;
@@ -810,7 +862,7 @@ void R_DrawWorld( void )
 		}
 		m6 = ri.Sys_Milliseconds();
 
-		if( r_temp1->integer == 2 )
+		if( r_temp1->integer != 1 )
 			Com_Printf( "%d %d %d %d\n", m2 - m1, m4 - m3, m6 - m5,  rsh.worldBrushModel->numsurfaces );
 	}
 	else
