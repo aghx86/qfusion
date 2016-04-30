@@ -697,6 +697,7 @@ void R_DrawWorld( void )
 	unsigned int dlightBits;
 	unsigned int shadowBits;
 	bool worldOutlines;
+	jobarg_t ja = { 0 };
 
 	if( !r_drawworld->integer )
 		return;
@@ -751,42 +752,29 @@ void R_DrawWorld( void )
 	if( r_speeds->integer )
 		msec = ri.Sys_Milliseconds();
 
-	if( 1 )
+	ja.uarg = clipFlags;
+
+	if( rsh.worldBrushModel->numvisleafs > rsh.worldBrushModel->numsurfaces )
 	{
-		jobarg_t ja = { .uarg = clipFlags };
-		unsigned m1, m2, m3, m4, m5, m6;
-
-		m1 = ri.Sys_Milliseconds();
-		if( rsh.worldBrushModel->numvisleafs > rsh.worldBrushModel->numsurfaces )
-		{
-			memset( (void *)rf.worldSurfVis, 1, rsh.worldBrushModel->numsurfaces * sizeof( *rf.worldSurfVis ) );
-			memset( (void *)rf.worldLeafVis, 1, rsh.worldBrushModel->numvisleafs * sizeof( *rf.worldLeafVis ) );
-		}
-		else
-		{
-			memset( (void *)rf.worldSurfVis, 0, rsh.worldBrushModel->numsurfaces * sizeof( *rf.worldSurfVis ) );
-			memset( (void *)rf.worldLeafVis, 0, rsh.worldBrushModel->numvisleafs * sizeof( *rf.worldLeafVis ) );
-
-			RJ_ScheduleJob( &R_CullVisLeavesJob, &ja, rsh.worldBrushModel->numvisleafs );
-			RJ_CompleteJobs();
-		}
-		m2 = ri.Sys_Milliseconds();
-
-		m3 = ri.Sys_Milliseconds();
-		RJ_ScheduleJob( &R_CullVisSurfacesJob, &ja, rsh.worldBrushModel->numsurfaces );
-
-		R_CountVisLeaves();
-
-		RJ_CompleteJobs();
-		m4 = ri.Sys_Milliseconds();
-
-		m5 = ri.Sys_Milliseconds();
-		R_DrawVisSurfaces( dlightBits, shadowBits );
-		m6 = ri.Sys_Milliseconds();
-
-		if( r_temp1->integer )
-		Com_Printf( "%d %d %d %d %d\n", m2 - m1, m4 - m3, m6 - m5, rsh.worldBrushModel->numvisleafs,  rsh.worldBrushModel->numsurfaces );
+		memset( (void *)rf.worldSurfVis, 1, rsh.worldBrushModel->numsurfaces * sizeof( *rf.worldSurfVis ) );
+		memset( (void *)rf.worldLeafVis, 1, rsh.worldBrushModel->numvisleafs * sizeof( *rf.worldLeafVis ) );
 	}
+	else
+	{
+		memset( (void *)rf.worldSurfVis, 0, rsh.worldBrushModel->numsurfaces * sizeof( *rf.worldSurfVis ) );
+		memset( (void *)rf.worldLeafVis, 0, rsh.worldBrushModel->numvisleafs * sizeof( *rf.worldLeafVis ) );
+
+		RJ_ScheduleJob( &R_CullVisLeavesJob, &ja, rsh.worldBrushModel->numvisleafs );
+		RJ_CompleteJobs();
+	}
+
+	RJ_ScheduleJob( &R_CullVisSurfacesJob, &ja, rsh.worldBrushModel->numsurfaces );
+
+	R_CountVisLeaves();
+
+	RJ_CompleteJobs();
+
+	R_DrawVisSurfaces( dlightBits, shadowBits );
 
 	if( r_speeds->integer )
 		rf.stats.t_world_node += ri.Sys_Milliseconds() - msec;

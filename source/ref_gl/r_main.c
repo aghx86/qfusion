@@ -1260,11 +1260,6 @@ void R_RenderView( const refdef_t *fd )
 	// R_DrawEntities can make adjustments as well
 
 	if( !shadowMap ) {
-		if( r_speeds->integer )
-			msec = ri.Sys_Milliseconds();
-		if( r_speeds->integer )
-			rf.stats.t_mark_leaves += ( ri.Sys_Milliseconds() - msec );
-
 		if( ! ( rn.refdef.rdflags & RDF_NOWORLDMODEL ) ) {
 			R_DrawWorld();
 
@@ -1512,9 +1507,9 @@ const char *R_WriteSpeedsMessage(char *out, size_t size)
 			case 2:
 			case 3:
 				Q_snprintfz(out, size,
-					"lvs: %5u  node: %5u\n"
+					"node: %5u\n"
 					"polys\\ents: %5u\\%5i  draw: %5u\n",
-					rf.stats.t_mark_leaves, rf.stats.t_world_node,
+					rf.stats.t_world_node,
 					rf.stats.t_add_polys, rf.stats.t_add_entities, rf.stats.t_draw_meshes
 				);
 				break;
