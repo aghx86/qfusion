@@ -981,7 +981,7 @@ static void R_SetupFrame( void )
 				rf.worldLeafVis = R_Malloc( rsh.worldBrushModel->numvisleafs * sizeof( *rf.worldLeafVis ) );
 				rf.numWorldLeafVis = rsh.worldBrushModel->numvisleafs;
 			}
-			else if( rf.numWorldSurfVis < rsh.worldBrushModel->numvisleafs ) {
+			else if( rf.numWorldLeafVis < rsh.worldBrushModel->numvisleafs ) {
 				rf.worldLeafVis = R_Realloc( (void *)rf.worldLeafVis, rsh.worldBrushModel->numvisleafs * sizeof( *rf.worldLeafVis ) );
 				rf.numWorldLeafVis = rsh.worldBrushModel->numvisleafs;
 			}

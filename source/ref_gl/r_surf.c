@@ -632,8 +632,10 @@ static void R_CullVisLeaves( unsigned firstLeaf, unsigned stride, unsigned clipF
 		if( R_CullBox( leaf->mins, leaf->maxs, clipFlags ) )
 			continue;
 
-		for( j = 0; j < leaf->numVisSurfaces; j++ )
+		for( j = 0; j < leaf->numVisSurfaces; j++ ) {
+			assert( leaf->visSurfaces[j] < rf.numWorldSurfVis );
 			rf.worldSurfVis[leaf->visSurfaces[j]] = 1;
+		}
 
 		rf.worldLeafVis[i] = 1;
 	}
@@ -698,6 +700,9 @@ void R_DrawWorld( void )
 	unsigned int shadowBits;
 	bool worldOutlines;
 	jobarg_t ja = { 0 };
+
+	assert( rf.numWorldSurfVis >= rsh.worldBrushModel->numsurfaces );
+	assert( rf.numWorldLeafVis >= rsh.worldBrushModel->numvisleafs );
 
 	if( !r_drawworld->integer )
 		return;
