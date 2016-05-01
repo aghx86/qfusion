@@ -97,7 +97,7 @@ static unsigned int R_SurfaceDlightBits( const msurface_t *surf, unsigned int ch
 		if( checkDlightBits & bit ) {
 			switch( surf->facetype ) {
 				case FACETYPE_PLANAR:
-					dist = PlaneDiff( lt->origin, &surf->plane );
+					dist = DotProduct( lt->origin, surf->plane ) - surf->plane[3];
 					if( dist > -lt->intensity && dist < lt->intensity ) {
 						surfDlightBits |= bit;
 					}
@@ -144,7 +144,7 @@ static unsigned int R_SurfaceShadowBits( const msurface_t *surf, unsigned int ch
 			switch( surf->facetype ) {
 				case FACETYPE_PLANAR:
 					if ( BoundsIntersect( surf->mins, surf->maxs, grp->visMins, grp->visMaxs ) ) {
-						float dist = PlaneDiff( grp->visOrigin, &surf->plane );
+						float dist = DotProduct( grp->visOrigin, surf->plane ) - surf->plane[3];
 						if ( dist > -grp->visRadius && dist <= grp->visRadius ) {
 							// crossed by plane
 							surfShadowBits |= bit;
@@ -580,7 +580,7 @@ static void R_CountVisLeaves( void )
 /*
 * R_CullVisLeaves
 */
-static void R_CullVisLeaves( unsigned firstLeaf, unsigned stride, unsigned clipFlags )
+static void R_CullVisLeaves( unsigned firstLeaf, unsigned items, unsigned clipFlags )
 {
 	unsigned i, j;
 	mleaf_t	*leaf;
@@ -613,9 +613,11 @@ static void R_CullVisLeaves( unsigned firstLeaf, unsigned stride, unsigned clipF
 	else
 		areabits = NULL;
 
-	for( i = firstLeaf; i < rsh.worldBrushModel->numvisleafs; i += stride )
+	for( i = 0; i < items; i++ )
 	{
-		leaf = rsh.worldBrushModel->visleafs[i];
+		unsigned l = firstLeaf + i;
+
+		leaf = rsh.worldBrushModel->visleafs[l];
 		if( !novis )
 		{
 			// check for door connected areas
@@ -637,23 +639,24 @@ static void R_CullVisLeaves( unsigned firstLeaf, unsigned stride, unsigned clipF
 			rf.worldSurfVis[leaf->visSurfaces[j]] = 1;
 		}
 
-		rf.worldLeafVis[i] = 1;
+		rf.worldLeafVis[l] = 1;
 	}
 }
 
 /*
 * R_CullVisSurfaces
 */
-static void R_CullVisSurfaces( unsigned firstSurf, unsigned stride, unsigned clipFlags )
+static void R_CullVisSurfaces( unsigned firstSurf, unsigned items, unsigned clipFlags )
 {
 	unsigned i;
 
-	for( i = firstSurf; i < rsh.worldBrushModel->numsurfaces; i += stride ) {
-		if( !rf.worldSurfVis[i] ) {
+	for( i = 0; i < items; i++ ) {
+		unsigned s = firstSurf + i;
+		if( !rf.worldSurfVis[s] ) {
 			continue;
 		}
-		if( R_CullSurface( rsc.worldent, rsh.worldBrushModel->surfaces + i, clipFlags ) ) {
-			rf.worldSurfVis[i] = 0;
+		if( R_CullSurface( rsc.worldent, rsh.worldBrushModel->surfaces + s, clipFlags ) ) {
+			rf.worldSurfVis[s] = 0;
 		}
 	}
 }
@@ -676,17 +679,17 @@ static void R_DrawVisSurfaces( unsigned dlightBits, unsigned shadowBits )
 /*
 * R_CullVisLeavesJob
 */
-static void R_CullVisLeavesJob( unsigned first, unsigned stride, jobarg_t *j )
+static void R_CullVisLeavesJob( unsigned first, unsigned items, jobarg_t *j )
 {
-	R_CullVisLeaves( first, stride, j->uarg );
+	R_CullVisLeaves( first, items, j->uarg );
 }
 
 /*
 * R_CullVisSurfacesJob
 */
-static void R_CullVisSurfacesJob( unsigned first, unsigned stride, jobarg_t *j )
+static void R_CullVisSurfacesJob( unsigned first, unsigned items, jobarg_t *j )
 {
-	R_CullVisSurfaces( first, stride, j->uarg );
+	R_CullVisSurfaces( first, items, j->uarg );
 }
 
 /*

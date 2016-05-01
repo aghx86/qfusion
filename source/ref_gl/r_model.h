@@ -75,7 +75,7 @@ typedef struct msurface_s
 	shader_t		*shader;
 	mesh_t			*mesh;
 	mfog_t			*fog;
-	cplane_t		plane;
+	vec4_t			plane;
 
 	union
 	{

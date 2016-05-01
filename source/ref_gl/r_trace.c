@@ -118,7 +118,7 @@ static bool R_TraceAgainstSurface( msurface_t *surf )
 			// flip normal is we are on the backside (does it really happen?)...
 			if( isPlanar )
 			{
-				if( DotProduct( trace_plane.normal, surf->plane.normal ) < 0 )
+				if( DotProduct( trace_plane.normal, surf->plane ) < 0 )
 					VectorInverse( trace_plane.normal );
 			}
 			return true;
