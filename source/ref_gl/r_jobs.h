@@ -29,7 +29,7 @@ typedef struct
 	unsigned uarg;
 } jobarg_t;
 
-typedef void (*jobfunc_t)( unsigned first, unsigned stride, jobarg_t * );
+typedef void (*jobfunc_t)( unsigned first, unsigned items, jobarg_t * );
 
 void RJ_Init( void );
 void RJ_ScheduleJob( jobfunc_t job, jobarg_t *arg, unsigned items );

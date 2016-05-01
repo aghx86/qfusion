@@ -34,7 +34,7 @@ typedef struct
 {
 	int id;
 	unsigned first;
-	unsigned stride;
+	unsigned items;
 	jobfunc_t job;
 	jobarg_t job_arg;
 } jobTakeCmd_t;
@@ -67,15 +67,18 @@ void RJ_Init( void )
 */
 void RJ_ScheduleJob( jobfunc_t job, jobarg_t *arg, unsigned items )
 {
-	unsigned i;
-	unsigned stride = NUM_JOB_THREADS;
-	
-	if( stride > items )
-		stride = items;
+	unsigned first;
+	const unsigned block = (items + NUM_JOB_THREADS - 1) / NUM_JOB_THREADS;
 
-	for( i = 0; i < stride; i++ ) {
-		RJ_IssueJobTakeCmd( job_count % NUM_JOB_THREADS, job, arg, i, stride );
+	for( first = 0; first < items; ) {
+		unsigned last = first + block;
+		if( last > items )
+			last = items;
+
+		RJ_IssueJobTakeCmd( job_count % NUM_JOB_THREADS, job, arg, first, last - first );
 		job_count++;
+
+		first += last - first;
 	}
 }
 
@@ -118,14 +121,14 @@ void RJ_Shutdown( void )
 /*
 * RJ_IssueJobTakeCmd
 */
-static void RJ_IssueJobTakeCmd( unsigned thread, jobfunc_t job, jobarg_t *arg, unsigned first, unsigned stride )
+static void RJ_IssueJobTakeCmd( unsigned thread, jobfunc_t job, jobarg_t *arg, unsigned first, unsigned items )
 {
 	jobTakeCmd_t cmd;
 	cmd.id = CMD_JOB_TAKE;
 	cmd.job = job;
 	cmd.job_arg = *arg;
 	cmd.first = first;
-	cmd.stride = stride;
+	cmd.items = items;
 	ri.BufPipe_WriteCmd( job_queue[thread], &cmd, sizeof( cmd ) );
 }
 
@@ -145,7 +148,7 @@ static unsigned R_HandleJobTakeCmd( void *pcmd )
 {
 	jobTakeCmd_t *cmd = pcmd;
 	
-	cmd->job( cmd->first, cmd->stride, &cmd->job_arg );
+	cmd->job( cmd->first, cmd->items, &cmd->job_arg );
 	
 	return sizeof( *cmd );
 }
